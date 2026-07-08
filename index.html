@@ -6,7 +6,7 @@
 <title>nicky is online</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
-  html, body { min-height: 100%; background: #000; overflow-x: hidden; }
+  html, body { min-height: 100%; background: #000; overflow-x: hidden; overscroll-behavior: none; }
 
   /* The void background canvas — full-screen layer behind content */
   #void {
@@ -371,7 +371,6 @@ one haves to imagine sisyphus as someone that loves making and remaking his webs
       sctx.fillStyle = '#000';
       sctx.fillRect(0, 0, SW, SH);
     }
-    window.addEventListener('resize', resize);
     resize();
 
     // ---- Mouse: steers the drift of the whole field (X and Y) ----
@@ -428,7 +427,17 @@ one haves to imagine sisyphus as someone that loves making and remaking his webs
       for (let i = 0; i < n; i++) squares.push(makeSquare());
     }
     seed();
-    window.addEventListener('resize', seed);
+
+    // iOS Safari fires 'resize' when its address bar shows/hides during scroll —
+    // that's a height-only change. Rebuilding the field then makes the void
+    // flicker/"go crazy", so only rebuild when the width actually changes.
+    let lastW = window.innerWidth;
+    window.addEventListener('resize', () => {
+      if (window.innerWidth === lastW) return;
+      lastW = window.innerWidth;
+      resize();
+      seed();
+    });
 
     const img = new Image();
     let quality = 0.12;   // JPEG quality: lower = heavier compression artifacts
@@ -623,7 +632,8 @@ one haves to imagine sisyphus as someone that loves making and remaking his webs
       guide.style.width = gw + 'px';
       guide.style.zIndex = ++topZ;                     // front layer
       const gimg = document.createElement('img');
-      gimg.src = 'images/GUIDE.png';
+      const isMobile = window.matchMedia('(max-width: 768px)').matches;
+      gimg.src = isMobile ? 'images/GUIDEMOBILE.png' : 'images/GUIDE.png';
       gimg.alt = 'guide';
       gimg.draggable = false;
       gimg.addEventListener('load', () => {
@@ -635,30 +645,65 @@ one haves to imagine sisyphus as someone that loves making and remaking his webs
       scatter.appendChild(guide);
     }
 
-    // drag an image around with the pointer
+    // drag an image with one pointer; pinch to resize it with two (touch)
     function makeDraggable(el) {
-      let ox = 0, oy = 0, dragging = false;
-      el.addEventListener('pointerdown', (e) => {
-        dragging = true;
-        el.setPointerCapture(e.pointerId);
+      const pointers = new Map();   // active pointerId -> {x, y}
+      let ox = 0, oy = 0;                                  // single-finger drag offset
+      let startDist = 0, startW = 0, startLeft = 0, startTop = 0, startRatio = 1;  // pinch state
+
+      function pts() { return [...pointers.values()]; }
+
+      function beginPinch() {
+        const [a, b] = pts();
+        startDist = Math.hypot(a.x - b.x, a.y - b.y);
+        startW = parseFloat(el.style.width) || el.offsetWidth;
+        startLeft = parseFloat(el.style.left) || el.offsetLeft;
+        startTop = parseFloat(el.style.top) || el.offsetTop;
+        startRatio = el.offsetHeight / (el.offsetWidth || startW);
+      }
+      function anchorDrag(p) {
         const rect = el.getBoundingClientRect();
-        ox = e.clientX - rect.left;
-        oy = e.clientY - rect.top;
-        el.style.zIndex = ++topZ;   // bring the clicked image to the front
+        ox = p.x - rect.left;
+        oy = p.y - rect.top;
+      }
+
+      el.addEventListener('pointerdown', (e) => {
+        el.setPointerCapture(e.pointerId);
+        pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+        el.style.zIndex = ++topZ;   // bring the touched image to the front
         el.classList.add('dragging');
+        if (pointers.size === 1) anchorDrag({ x: e.clientX, y: e.clientY });
+        else if (pointers.size === 2) beginPinch();
         e.preventDefault();
         e.stopPropagation();
       });
+
       el.addEventListener('pointermove', (e) => {
-        if (!dragging) return;
-        el.style.left = (e.clientX - ox) + 'px';
-        el.style.top = (e.clientY - oy) + 'px';
+        if (!pointers.has(e.pointerId)) return;
+        pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+        if (pointers.size >= 2 && startDist > 0) {         // pinch: resize from the centre
+          const [a, b] = pts();
+          const dist = Math.hypot(a.x - b.x, a.y - b.y);
+          const next = Math.max(30, Math.min(1400, startW * (dist / startDist)));
+          const dw = next - startW;
+          el.style.left = (startLeft - dw / 2) + 'px';
+          el.style.top = (startTop - dw / 2 * startRatio) + 'px';
+          el.style.width = next + 'px';
+        } else if (pointers.size === 1) {                  // single finger: move it
+          el.style.left = (e.clientX - ox) + 'px';
+          el.style.top = (e.clientY - oy) + 'px';
+        }
+        e.preventDefault();
       });
+
       const end = (e) => {
-        if (!dragging) return;
-        dragging = false;
+        if (!pointers.has(e.pointerId)) return;
         try { el.releasePointerCapture(e.pointerId); } catch (_) {}
-        el.classList.remove('dragging');
+        pointers.delete(e.pointerId);
+        startDist = 0;
+        if (pointers.size === 1) anchorDrag(pts()[0]);     // hand control back to the remaining finger
+        else if (pointers.size === 0) el.classList.remove('dragging');
       };
       el.addEventListener('pointerup', end);
       el.addEventListener('pointercancel', end);
