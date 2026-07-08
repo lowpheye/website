@@ -1,0 +1,265 @@
+{
+  "webrings": {
+    "heading": "webrings this site is in:",
+    "html": "<div style=\"text-align:left\">\n         <a target=\"_blank\" href=\"https://webring.dinhe.net/prev/https://nickyis.online/\">&larr; prev</a> <a target=\"_blank\" href=\"https://webring.dinhe.net/\">The Retronaut Webring!</a>\n        <a target=\"_blank\" href=\"https://webring.dinhe.net/next/https://nickyis.online/\">next &rarr;</a>\n      </div>\n      <br>\n      <iframe src=\"https://silly.city/embed.html?user=nicky\" title=\"silly.city webring\" width=\"100%\" height=\"90\"></iframe>"
+  },
+  "cool": {
+    "heading": "these are the links to some websites i think are cool:",
+    "links": [
+      {
+        "url": "https://nekoweb.org/",
+        "button": "https://nekoweb.org/assets/buttons/button5.gif"
+      },
+      {
+        "url": "https://astracelestine.nekoweb.org/",
+        "button": "https://astracelestine.nekoweb.org/img/siteWidget.png",
+        "buttonStyle": "width: 80px"
+      },
+      {
+        "url": "https://silly.city/",
+        "button": "https://silly.city/silly.gif"
+      },
+      {
+        "url": "https://webvm.io/"
+      },
+      {
+        "url": "https://olografix.org/en/"
+      },
+      {
+        "url": "https://www.telescopictext.org/"
+      },
+      {
+        "url": "https://lainchan.org/"
+      },
+      {
+        "url": "https://www.sbnation.com/a/17776-football"
+      },
+      {
+        "url": "https://wmw.thran.uk/"
+      },
+      {
+        "url": "https://iamwillwang.com/notes/has-not-been-viewed-much/"
+      },
+      {
+        "url": "https://radio.kwsx.online/"
+      },
+      {
+        "url": "https://fightchatcontrol.eu/"
+      },
+      {
+        "url": "https://enclose.horse/"
+      },
+      {
+        "url": "https://wikimapia.org/"
+      },
+      {
+        "url": "https://ncase.me/"
+      },
+      {
+        "url": "https://mitxela.com/"
+      },
+      {
+        "url": "https://cobalt.tools/"
+      },
+      {
+        "url": "https://www.shadertoy.com/"
+      },
+      {
+        "url": "https://www.dingusland.fun/"
+      },
+      {
+        "url": "https://www.nesdev.org/"
+      },
+      {
+        "url": "https://winworldpc.com/home"
+      },
+      {
+        "url": "http://harmonyzone.org/"
+      },
+      {
+        "url": "https://computernewb.com/collab-vm/"
+      },
+      {
+        "url": "https://www.nand2tetris.org/"
+      },
+      {
+        "url": "https://postmarketos.org/"
+      },
+      {
+        "url": "https://www.windytan.com/"
+      },
+      {
+        "url": "https://news.ycombinator.com/"
+      },
+      {
+        "url": "https://sprig.hackclub.com/"
+      },
+      {
+        "url": "https://databending.org/"
+      },
+      {
+        "url": "https://brisray.com/utils/webrings.htm"
+      },
+      {
+        "url": "https://www.sigidwiki.com/"
+      },
+      {
+        "url": "https://tabbygarf.club/"
+      },
+      {
+        "url": "https://getfullyear.com/"
+      },
+      {
+        "url": "https://dustinbrett.com/"
+      },
+      {
+        "url": "https://odditycommoddity.neocities.org/"
+      },
+      {
+        "url": "https://acidicalchemist.neocities.org/"
+      },
+      {
+        "url": "https://hugorowan.neocities.org/"
+      },
+      {
+        "url": "https://oerrorpage.neocities.org/"
+      },
+      {
+        "url": "https://webring.nerdcore.net/"
+      },
+      {
+        "url": "https://iceconey14.github.io/misc-webring/"
+      },
+      {
+        "url": "https://garlic.garden/onionring/"
+      },
+      {
+        "url": "https://george.gh0.pw/"
+      },
+      {
+        "url": "https://baccyflap.com/noai/"
+      },
+      {
+        "url": "https://mxbo.neocities.org/"
+      },
+      {
+        "url": "https://catskulls.neocities.org/"
+      },
+      {
+        "url": "https://zonelets.net/"
+      },
+      {
+        "url": "https://deltafrost.nekoweb.org/"
+      },
+      {
+        "url": "https://yatagarasu.nekoweb.org/"
+      },
+      {
+        "url": "https://everythingisblurry.com/"
+      },
+      {
+        "url": "https://apfel.nekoweb.org/"
+      },
+      {
+        "url": "https://lain.nekoweb.org/"
+      },
+      {
+        "url": "https://picea.nekoweb.org/"
+      },
+      {
+        "url": "https://jeffland.net/"
+      },
+      {
+        "url": "https://anlucas.neocities.org/88x31Buttons"
+      },
+      {
+        "url": "https://angle.nekoweb.org/"
+      },
+      {
+        "url": "https://s1nez.nekoweb.org/"
+      },
+      {
+        "url": "https://octosquigglez.nekoweb.org/"
+      },
+      {
+        "url": "https://gabebw.com/"
+      },
+      {
+        "url": "https://edwardloveall.com/"
+      },
+      {
+        "url": "http://adarsh.io/"
+      },
+      {
+        "url": "https://thorn.co/"
+      },
+      {
+        "url": "https://hotlinewebring.club/"
+      },
+      {
+        "url": "https://thedigitalme.neocities.org/"
+      },
+      {
+        "url": "https://www.11ty.dev/"
+      },
+      {
+        "url": "https://machine-cat.space/home/"
+      },
+      {
+        "url": "https://omfg.neocities.org/"
+      },
+      {
+        "url": "https://cliques.moudoku.com/cats/"
+      },
+      {
+        "url": "https://pkmn.caelestis.nu/"
+      },
+      {
+        "url": "https://sailorcrystal.net/guardians/"
+      },
+      {
+        "url": "https://maia.crimew.gay/"
+      },
+      {
+        "url": "https://12ft.io/"
+      },
+      {
+        "url": "https://fanlistings.nickifaulk.com/shetland/"
+      },
+      {
+        "url": "http://webring.dinhe.net/"
+      },
+      {
+        "url": "https://whoishohokam.com/"
+      },
+      {
+        "url": "https://maple.pet/"
+      },
+      {
+        "url": "https://e-vil.net/"
+      },
+      {
+        "url": "https://emreed.net/LowTech_Directory"
+      },
+      {
+        "url": "http://oldavg.blog.shinobi.jp/"
+      }
+    ]
+  },
+  "favourites": {
+    "heading": "but these two will always be my favourites:",
+    "links": [
+      {
+        "url": "https://www.wikipedia.org/"
+      },
+      {
+        "url": "https://archive.org/"
+      }
+    ]
+  },
+  "button": {
+    "href": "https://nickyis.online/",
+    "img": "https://nickyis.online/assets/8831.png",
+    "imgStyle": "width: 80px"
+  }
+}
