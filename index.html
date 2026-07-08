@@ -1,0 +1,693 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>nicky is online</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { min-height: 100%; background: #000; overflow-x: hidden; }
+
+  /* The void background canvas — full-screen layer behind content */
+  #void {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 0;
+    display: block;
+    background: #000;
+    image-rendering: pixelated;   /* crisp, blocky upscale of the lo-fi buffer */
+  }
+
+  /* faint scanline / vignette overlay to sell the "engine" look */
+  #grain {
+    position: fixed;
+    inset: 0;
+    z-index: 1;
+    pointer-events: none;
+    background:
+      radial-gradient(ellipse at center, transparent 45%, rgba(0,0,0,0.7) 100%),
+      repeating-linear-gradient(0deg, rgba(0,0,0,0) 0px, rgba(0,0,0,0) 2px, rgba(0,0,0,0.16) 3px);
+  }
+
+  /* Your content goes in here — it stacks ABOVE the void */
+  .page {
+    position: relative;
+    z-index: 2;
+    min-height: 100vh;
+    padding: 2rem;
+    color: #fff;
+    font-family: "Courier New", monospace;
+    font-size: clamp(1rem, 2.5vw, 1.25rem);
+    line-height: 1.6;
+    /* dark halo so text stays legible over the noisy, color-shifting void */
+    text-shadow:
+      0 0 3px #000, 0 0 3px #000,
+      0 0 6px #000, 0 1px 2px #000;
+  }
+  .page a { color: #fff; text-decoration: underline; }
+
+  /* nav links on the main page */
+  .nav {
+    margin-top: 1.5rem;
+    display: flex;
+    gap: 1rem;
+    flex-wrap: wrap;
+  }
+  .nav a {
+    text-decoration: none;
+    text-transform: lowercase;
+    letter-spacing: 0.15em;
+    padding: 0.35em 0.9em;
+    border: 1px solid rgba(255,255,255,0.6);
+    background: rgba(0,0,0,0.45);
+    text-shadow: none;                 /* no glowy halo on the buttons */
+    transition: background 120ms, color 120ms;
+  }
+  .nav a:hover { background: #fff; color: #000; }
+
+  /* ---- side menu that slides in from the right ---- */
+  .modal {
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: min(460px, 92vw);
+    z-index: 10;
+    transform: translateX(100%);           /* parked off-screen to the right */
+    transition: transform 0.35s ease;
+  }
+  .modal.open { transform: translateX(0); }
+  .modal-panel {
+    height: 100%;
+    overflow-y: auto;
+    padding: 2.5rem 1.8rem;
+    background: rgba(8,0,0,0.94);
+    border-left: 1px solid rgba(255,255,255,0.14);
+    color: #e8e8e8;
+    font-family: "Roboto Mono", "Courier New", monospace;
+    font-size: 0.95rem;
+    line-height: 1.6;
+  }
+  .modal-panel h1 { font-size: 1.6rem; margin-bottom: 0.5rem; color: #fff; }
+  .modal-panel h3 { margin: 1.4rem 0 0.3rem; color: #ff5a5a; font-weight: 700; }
+  .modal-panel a { color: #ff7a7a; }
+  .modal-panel img { max-width: 200px; height: auto; padding: 2px; vertical-align: middle; }
+  .modal-panel iframe { max-width: 100%; border: 0; }
+  .modal-panel textarea { width: 100%; max-width: 320px; background: #000; color: #ccc; border: 1px solid #444; }
+  .modal-close {
+    position: sticky;
+    top: 0;
+    float: right;
+    margin: -1rem -0.5rem 0 0;
+    width: 2rem;
+    height: 2rem;
+    font-size: 1.1rem;
+    line-height: 1;
+    color: #fff;
+    background: rgba(255,20,20,0.25);
+    border: 1px solid rgba(255,60,60,0.7);
+    cursor: pointer;
+  }
+  .modal-close:hover { background: rgba(255,20,20,0.6); }
+
+  /* ---- scattered images layer (toggled by the "images" button) ---- */
+  #scatter {
+    position: fixed;
+    inset: 0;
+    z-index: 3;
+    pointer-events: none;   /* only the images themselves catch the mouse */
+  }
+  #scatter .pic {
+    position: absolute;
+    pointer-events: auto;
+    cursor: grab;
+    touch-action: none;         /* don't scroll the page while dragging on touch */
+    user-select: none;
+  }
+  #scatter .pic.dragging { cursor: grabbing; }
+  #scatter .pic img {
+    display: block;
+    width: 100%;
+    height: auto;
+    border: 1px solid #000;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.6);
+    -webkit-user-drag: none;
+    user-select: none;
+  }
+  #scatter .pic:hover { z-index: 60; }
+  /* black box with the alt text on hover */
+  #scatter .pic .tip {
+    position: absolute;
+    left: 50%;
+    bottom: 100%;
+    transform: translateX(-50%);
+    margin-bottom: 8px;
+    max-width: 220px;
+    width: max-content;
+    padding: 6px 9px;
+    background: #000;
+    color: #fff;
+    font-family: "Roboto Mono", "Courier New", monospace;
+    font-size: 12px;
+    line-height: 1.4;
+    text-align: center;
+    white-space: normal;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 120ms;
+    pointer-events: none;
+  }
+  #scatter .pic:hover .tip { opacity: 1; visibility: visible; }
+</style>
+</head>
+<body>
+  <canvas id="void"></canvas>
+  <div id="grain"></div>
+  <div id="scatter" aria-hidden="true"></div>
+
+  <div class="page">
+    dig nickyis.online
+
+; <<>> DiG 9.20.18-1ubuntu2-Ubuntu <<>> nickyis.online
+;; global options: +cmd
+;; Got answer:
+;; ->>HEADER<<- opcode: QUERY, status: NOERROR, id: 63645
+;; flags: qr rd ra; QUERY: 1, ANSWER: 6, AUTHORITY: 0, ADDITIONAL: 1
+    <nav class="nav">
+      <a href="#" data-modal="whoami">whoami</a>
+      <a href="#" data-modal="blog">blog</a>
+      <a href="#" data-modal="links">links</a>
+      <a href="#" data-action="images">images</a>
+    </nav>
+  </div>
+
+  <!-- ===== whoami (fill this in) ===== -->
+  <div class="modal" id="modal-whoami">
+    <div class="modal-panel">
+      <button class="modal-close" aria-label="close">&#10005;</button>
+        i'm nick, i like computers and building things.
+        <br><a href="https://www.instagram.com/nickyis.online/">instagram</a>
+    </div>
+  </div>
+
+  <!-- ===== blog content (pulled from blog.html, structure stripped) ===== -->
+  <div class="modal" id="modal-blog">
+    <div class="modal-panel">
+      <button class="modal-close" aria-label="close">&#10005;</button>
+      <h1>blog</h1>
+      <h3>wed 8 jul 26- back</h3>
+one haves to imagine sisyphus as someone that loves making and remaking his website. been up to good here and there, look at my blogpost. also ai is a thing now ill have to get used to it
+      <h3>tue 6 jan 26- back</h3>
+      happy yearmas, website is back after significant downtime, been to a few hackercamps, learning and having fun, venezuela is free, many such cases.
+      <h3>wed 11 jun 25- til</h3>
+      wintegreen plant is not the same as wintergreen flavour, which is done with peppermint: this confused me a lot.
+      <h3>sat 19 apr 25- 302 found</h3>
+      i had been looking for a third place for so long and i finally found it, it is <span id="olostatus"></span> right now.
+      <br>(my third place has an API and that makes it special)
+      <h3>sun 16 feb 25- three things i made</h3>
+      i've been bored out of my mind recently, so i have been making things, dumb things, things that have already been made by people before in way higher quality, but i just need a way to pass the time.
+      n1: i made a calculator in minecraft! it ain't pretty, it ain't optimized, but it works! and the best part is that i made it using only my understanding of logic gates so it actually feels like a product of my imagination even though "minecaft calculator" is a concept that has been explored since the game was born.
+      <br><img src="old/nio_mainsite/assets/calc.PNG" title="yeah this is it"><img src="old/nio_mainsite/assets/calc2.PNG" title="low quality because screenshotting from instagram is faster than looking through my phone's infinite gallery"><br>
+      n2: i made some dumb "visual art" during class (if you can even call it that) after vaguely learning what a vanishing point is, as always i made it on processing, if i explored the concept more it could become vaguely reminiscent of <a target="_blank" href="https://www.universaleverything.com/commissions/polyfauna">polyfauna</a>?.
+      <br><img src="old/nio_mainsite/assets/cooldots.PNG" title="looks like venom actually"><br><a target="_blank" href="old/nio_mainsite/assets/cooldots.rar">nickyis.online/assets/cooldots.rar</a><br>
+      n3: conways game of life on a launchpad, this is by far the dumbest of the bunch but it came to me on a vision and i had to make it true, the code is disgusting because of how janky the libraries for the launchpad are so i wont be sharing it but hey! it works!
+      <br><img src="old/nio_mainsite/assets/gol.PNG" title="you are going to have to hilariously trust me on this working and actually following the rules of life because i don't feel like going through the hell of embedding a video, if you want to check it out my instagram @ is very obvious"><br>
+      so these are three things i have made this year. i hope i can make many more!
+      i also discovered emails are cool and if you're reading this you should send me one!(also two great pieces of media that i have been consuming: paper mario for the nintendo wii and severance the tv show by ben stiller)
+      <h3>mon 10 feb 25- 1984</h3>
+      website statistics!, they work amazingly <a target="_blank" href="https://umami.nickyis.online/share/fy0tdD0JyYY5GSFs/nickyis.online">here</a>
+      <h3>wed 25 dec 24- merry christmas</h3>
+      &#127876;
+      <h3>fri 13 dec 24- sinwaves are cool!</h3>
+      playing with grafical user interfaces, i really like the oscilloscope aestethic, i'd love to make an actual working oscilloscope w/ an arduino or something if that even is possible : <a target="_blank" href="https://nickyis.online/assets/sinwave.rar">sinwave.rar (windows executable)</a>
+      <h3>mon 02 dec 24 - this is a test</h3>
+      made a script that formats blog entries for me -- now im testing it!&#9733;
+      <h3>tue 28 nov 24 - PSA</h3>
+      Public Service Announcement: if you wish to delete all of the contents in a folder the correct syntax is NOT "user@computer:~/folder$ sudo rm -rf /*", the correct syntax IS "user@computer:~/folder$ sudo rm -rf ./*" : this mistake ruined my weekend, thank god for backups&#9733;
+      <h3>tue 27 nov 24 - rome and computers</h3>
+      yesterday my trusty macbook, that has carried me gracefully through the 'triennio' with no issues (except for a broken battery and a broken trackpad ribbon cable that i had to replace, and an infinity of software problems caused by how despicable macOS can be at times) oficially died. i took it out of my backpack and out of nowhere the screen just.. like.. stopped working, so i inmediately did what any sane person would do and bought a lenovo thinkpad: that ought to last. -- also i'm going to rome!, so i hope i will get to add some new photos to the site gallery.&#9733;
+      <h3>tue 22 nov 24 - languages</h3>
+      i find it so cute the way the french and dutch both say "you're welcome" in long ways and then abbreviate it, S.V.P and A.U.B is such an adorable thing to read // also i am currently working on a radio online receiver: i find fm radio as a concept hilarious and i NEED this website to relay some generic italian pop music fm station.&#9733;
+      <h3>tue 20 nov 24 - of age</h3>
+      as a brand new adult i am now responsible legally for this server, aint that nice&#9733;
+      <h3>tue 14 nov 24 - webrings</h3>
+      with a finished project, and with every single piece of infrastructure that i could've possibly conceived ever done, i set off to make my website discoverable to more likeminded people : and what better way to do that than a webring!
+      <br><br>a webring is a list of websites that link to the website before themselves in the list and the website after, usually in their main page, and then the last website on the list points to the first, effectively forming a ring. webrings are like social media if social media was <i>cool</i> , like <i>really cool</i>.
+      <br><br>facebook bastardized this concept with the "people you might like" tab, and that leads me to think that a procedurally generated "webring" could be a very interesting project, think of how cool it would be to link together the ease-of-use of modern social media with the awesomeness of the hobbyist website community, i know it kind of ruins the concept but it could be a very interesting idea&#9733;
+      <h3>tue 12 nov 24 - beginning</h3>
+      i worked on this website during two entire school days, and i've been working on the "server" (30&euro; computer) that holds it for about two months, i'm very happy on how it all turned out even if there's some things that are not very efficient, but i think i still did a good job and the site looks and feels exactly how i wanted it(even on mobile!)&#9733;
+    </div>
+  </div>
+
+  <!-- ===== links content (pulled from links.html, structure stripped) ===== -->
+  <div class="modal" id="modal-links">
+    <div class="modal-panel">
+      <button class="modal-close" aria-label="close">&#10005;</button>
+      <h1>webrings this site is in:</h1>
+      <div style="text-align:left">
+        <a href="https://baccyflap.com/noai/?prv&s=nio" target="_blank">&larr; prev</a>&emsp;
+        <a href="https://baccyflap.com/noai" target="_blank">no ai webring</a>
+        <a style="font-size:60%" href="https://baccyflap.com/noai/?rnd" target="_blank">(random)</a>&emsp;
+        <a href="https://baccyflap.com/noai/?nxt&s=nio" target="_blank">next &rarr;</a><br>
+        <a target="_blank" href="https://webring.dinhe.net/prev/https://nickyis.online/">&larr; prev</a> <a target="_blank" href="https://webring.dinhe.net/">The Retronaut Webring!</a>
+        <a target="_blank" href="https://webring.dinhe.net/next/https://nickyis.online/">next &rarr;</a>
+      </div>
+      <br>
+      <iframe src="https://silly.city/embed.html?user=nicky" title="silly.city webring" width="100%" height="90"></iframe>
+
+      <h1>these are the links to some websites i think are cool:</h1>
+      <a target="_blank" href="https://nekoweb.org/"><img src="https://nekoweb.org/assets/buttons/button5.gif"></a>
+      <a target="_blank" href="https://nekoweb.org/">https://nekoweb.org/</a><br>
+      <a target="_blank" href="https://astracelestine.nekoweb.org"><img src="https://astracelestine.nekoweb.org/img/siteWidget.png" style="width: 80px"></a>
+      <a target="_blank" href="https://astracelestine.nekoweb.org/">https://astracelestine.nekoweb.org/</a><br>
+      <a target="_blank" href="https://silly.city/"><img src="https://silly.city/silly.gif"></a>
+      <a target="_blank" href="https://silly.city/">https://silly.city/</a><br>
+      <a target="_blank" href="https://webvm.io/">https://webvm.io/</a><br>
+      <a target="_blank" href="https://olografix.org/en/">https://olografix.org/en/</a><br>
+      <a target="_blank" href="https://www.telescopictext.org/">https://www.telescopictext.org/</a><br>
+      <a target="_blank" href="https://wikimapia.org/">https://wikimapia.org/</a>
+      <a target="_blank" href="https://ncase.me/">https://ncase.me/</a><br>
+      <a target="_blank" href="https://mitxela.com/">https://mitxela.com/</a><br>
+      <a target="_blank" href="https://cobalt.tools/">https://cobalt.tools/</a><br>
+      <a target="_blank" href="https://www.shadertoy.com/">https://www.shadertoy.com/</a><br>
+      <a target="_blank" href="https://www.dingusland.fun/">https://www.dingusland.fun/</a><br>
+      <a target="_blank" href="https://www.nesdev.org/">https://www.nesdev.org/</a><br>
+      <a target="_blank" href="https://winworldpc.com/home">https://winworldpc.com/home</a><br>
+      <a target="_blank" href="http://harmonyzone.org/">http://harmonyzone.org/</a><br>
+      <a target="_blank" href="https://computernewb.com/collab-vm/">https://computernewb.com/collab-vm/</a><br>
+      <a target="_blank" href="https://www.nand2tetris.org/">https://www.nand2tetris.org/</a><br>
+      <a target="_blank" href="https://postmarketos.org/">https://postmarketos.org/</a><br>
+      <a target="_blank" href="https://www.windytan.com/">https://www.windytan.com/</a><br>
+      <a target="_blank" href="https://news.ycombinator.com/">https://news.ycombinator.com/</a><br>
+      <a target="_blank" href="https://sprig.hackclub.com/">https://sprig.hackclub.com/</a><br>
+      <a target="_blank" href="https://databending.org/">https://databending.org/</a><br>
+      <a target="_blank" href="https://brisray.com/utils/webrings.htm">https://brisray.com/utils/webrings.htm</a><br>
+      <a target="_blank" href="https://www.sigidwiki.com/">https://www.sigidwiki.com/</a><br>
+      <a target="_blank" href="https://tabbygarf.club/">https://tabbygarf.club/</a><br>
+      <a target="_blank" href="https://getfullyear.com/">https://getfullyear.com/</a><br>
+      <a target="_blank" href="https://dustinbrett.com/">https://dustinbrett.com/</a><br>
+      <a target="_blank" href="https://odditycommoddity.neocities.org/">https://odditycommoddity.neocities.org/</a><br>
+      <a target="_blank" href="https://acidicalchemist.neocities.org/">https://acidicalchemist.neocities.org/</a><br>
+      <a target="_blank" href="https://hugorowan.neocities.org/">https://hugorowan.neocities.org/</a><br>
+      <a target="_blank" href="https://oerrorpage.neocities.org/">https://oerrorpage.neocities.org/</a><br>
+      <a target="_blank" href="https://webring.nerdcore.net/">https://webring.nerdcore.net/</a><br>
+      <a target="_blank" href="https://iceconey14.github.io/misc-webring/">https://iceconey14.github.io/misc-webring/</a><br>
+      <a target="_blank" href="https://garlic.garden/onionring/">https://garlic.garden/onionring/</a><br>
+      <a target="_blank" href="https://george.gh0.pw/">https://george.gh0.pw/</a><br>
+      <a target="_blank" href="https://baccyflap.com/noai/">https://baccyflap.com/noai/</a><br>
+      <a target="_blank" href="https://mxbo.neocities.org/">https://mxbo.neocities.org/</a><br>
+      <a target="_blank" href="https://catskulls.neocities.org/">https://catskulls.neocities.org/</a><br>
+      <a target="_blank" href="https://zonelets.net/">https://zonelets.net/</a><br>
+      <a target="_blank" href="https://deltafrost.nekoweb.org/">https://deltafrost.nekoweb.org/</a><br>
+      <a target="_blank" href="https://yatagarasu.nekoweb.org/">https://yatagarasu.nekoweb.org/</a><br>
+      <a target="_blank" href="https://everythingisblurry.com/">https://everythingisblurry.com/</a><br>
+      <a target="_blank" href="https://apfel.nekoweb.org/">https://apfel.nekoweb.org/</a><br>
+      <a target="_blank" href="https://lain.nekoweb.org/">https://lain.nekoweb.org/</a><br>
+      <a target="_blank" href="https://picea.nekoweb.org/">https://picea.nekoweb.org/</a><br>
+      <a target="_blank" href="https://jeffland.net/">https://jeffland.net/</a><br>
+      <a target="_blank" href="https://anlucas.neocities.org/88x31Buttons">https://anlucas.neocities.org/88x31Buttons</a><br>
+      <a target="_blank" href="https://angle.nekoweb.org/">https://angle.nekoweb.org/</a><br>
+      <a target="_blank" href="https://s1nez.nekoweb.org/">https://s1nez.nekoweb.org/</a><br>
+      <a target="_blank" href="https://octosquigglez.nekoweb.org/">https://octosquigglez.nekoweb.org/</a><br>
+      <a target="_blank" href="https://gabebw.com/">https://gabebw.com/</a><br>
+      <a target="_blank" href="https://edwardloveall.com/">https://edwardloveall.com/</a><br>
+      <a target="_blank" href="http://adarsh.io/">http://adarsh.io/</a><br>
+      <a target="_blank" href="https://thorn.co/">https://thorn.co/</a><br>
+      <a target="_blank" href="https://hotlinewebring.club/">https://hotlinewebring.club/</a><br>
+      <a target="_blank" href="https://thedigitalme.neocities.org/">https://thedigitalme.neocities.org/</a><br>
+      <a target="_blank" href="https://www.11ty.dev/">https://www.11ty.dev/</a><br>
+      <a target="_blank" href="https://machine-cat.space/home/">https://machine-cat.space/home/</a><br>
+      <a target="_blank" href="https://omfg.neocities.org/">https://omfg.neocities.org/</a><br>
+      <a target="_blank" href="https://cliques.moudoku.com/cats/">https://cliques.moudoku.com/cats/</a><br>
+      <a target="_blank" href="https://pkmn.caelestis.nu/">https://pkmn.caelestis.nu/</a><br>
+      <a target="_blank" href="https://sailorcrystal.net/guardians/">https://sailorcrystal.net/guardians/</a><br>
+      <a target="_blank" href="https://maia.crimew.gay/">https://maia.crimew.gay/</a><br>
+      <a target="_blank" href="https://12ft.io/">https://12ft.io/</a><br>
+      <a target="_blank" href="https://fanlistings.nickifaulk.com/shetland/">https://fanlistings.nickifaulk.com/shetland/</a><br>
+      <a target="_blank" href="http://webring.dinhe.net/">http://webring.dinhe.net/</a><br>
+      <a target="_blank" href="https://whoishohokam.com/">https://whoishohokam.com/</a><br>
+      <a target="_blank" href="https://maple.pet/">https://maple.pet/</a><br>
+      <a target="_blank" href="https://e-vil.net/">https://e-vil.net/</a><br>
+      <a target="_blank" href="https://emreed.net/LowTech_Directory">https://emreed.net/LowTech_Directory</a><br>
+      <a target="_blank" href="http://oldavg.blog.shinobi.jp/">http://oldavg.blog.shinobi.jp/</a><br>
+      <h1>but these two will always be my favourites:</h1>
+      <a target="_blank" href="https://www.wikipedia.org/">https://www.wikipedia.org/</a><br>
+      <a target="_blank" href="https://archive.org/">https://archive.org/</a><br>
+      <br>
+      <textarea rows="3">&lt;a href="https://nickyis.online/"&gt;&lt;img src="https://nickyis.online/assets/8831.png" style="width: 80px"&gt;&lt;/a&gt;</textarea>
+      <br><a target="_blank" href="https://nickyis.online/"><img src="https://nickyis.online/assets/8831.png"></a>
+    </div>
+  </div>
+
+  <script>
+  (function () {
+    "use strict";
+
+    const view = document.getElementById('void');
+    const vctx = view.getContext('2d');
+
+    // Offscreen low-res "simulation" buffer. Rendering small then upscaling
+    // makes the JPEG blocks chunky and keeps the per-frame re-encode cheap.
+    const sim = document.createElement('canvas');
+    const sctx = sim.getContext('2d');
+
+    let W = 0, H = 0, SW = 0, SH = 0;
+    function resize() {
+      W = window.innerWidth;
+      H = window.innerHeight;
+      view.width = W;
+      view.height = H;
+
+      const cap = 640;                 // longest side of the sim buffer
+      const scale = Math.min(1, cap / Math.max(W, H));
+      SW = Math.max(2, Math.round(W * scale));
+      SH = Math.max(2, Math.round(H * scale));
+      sim.width = SW;
+      sim.height = SH;
+
+      sctx.globalCompositeOperation = 'source-over';
+      sctx.fillStyle = '#000';
+      sctx.fillRect(0, 0, SW, SH);
+    }
+    window.addEventListener('resize', resize);
+    resize();
+
+    // ---- Mouse: steers the drift of the whole field (X and Y) ----
+    const mouse = { x: 0.5, y: 0.5 };
+    window.addEventListener('pointermove', (e) => {
+      mouse.x = e.clientX / window.innerWidth;
+      mouse.y = e.clientY / window.innerHeight;
+    });
+    window.addEventListener('pointerleave', () => { mouse.x = 0.5; mouse.y = 0.5; });
+
+    // ---- Scroll wheel: grow / shrink the squares ----
+    let sizeScale = 1;
+    window.addEventListener('wheel', (e) => {
+      if (e.target.closest && e.target.closest('.modal')) return;  // let panels scroll
+
+      // scrolling over a scattered image resizes that image, keeping it centered
+      const pic = e.target.closest && e.target.closest('#scatter .pic');
+      if (pic) {
+        e.preventDefault();
+        const factor = e.deltaY < 0 ? 1.12 : 0.89;
+        const cur = parseFloat(pic.style.width) || pic.offsetWidth;
+        const next = Math.max(30, Math.min(1400, cur * factor));
+        const left = parseFloat(pic.style.left) || pic.offsetLeft;
+        const top = parseFloat(pic.style.top) || pic.offsetTop;
+        const dw = next - cur;
+        pic.style.left = (left - dw / 2) + 'px';           // grow from the centre
+        pic.style.top = (top - dw / 2 * (pic.offsetHeight / cur)) + 'px';
+        pic.style.width = next + 'px';
+        return;
+      }
+
+      e.preventDefault();
+      sizeScale *= (e.deltaY < 0 ? 1.12 : 0.89);
+      sizeScale = Math.max(0.25, Math.min(8, sizeScale));
+    }, { passive: false });
+
+    // ---- Random squares: flat 2D blocks that drift and leave smear trails ----
+    function rnd(a, b) { return a + Math.random() * (b - a); }
+    function makeSquare() {
+      return {
+        x: Math.random() * SW,
+        y: Math.random() * SH,
+        size: rnd(8, 18),
+        vx: rnd(-0.5, 0.5),
+        vy: rnd(-0.5, 0.5),
+        l: rnd(38, 60),          // per-square lightness within the current hue
+        a: rnd(0.4, 0.9)
+      };
+    }
+    let squares = [];
+    function seed() {
+      squares = [];
+      const n = Math.round((SW * SH) / 2600);   // density scales with buffer
+      for (let i = 0; i < n; i++) squares.push(makeSquare());
+    }
+    seed();
+    window.addEventListener('resize', seed);
+
+    const img = new Image();
+    let quality = 0.12;   // JPEG quality: lower = heavier compression artifacts
+
+    // ---- Color: starts red; each click resets the void and recolors it ----
+    let hue = 0;   // 0 = red
+    function reset(e) {
+      // ignore clicks on UI (links, buttons, nav) or anything inside a modal,
+      // and don't reset while a panel is open
+      if (e && e.target.closest && e.target.closest('a, button, .nav, .modal, #scatter')) return;
+      if (document.querySelector('.modal.open')) return;
+      hue = (Math.random() * 360) | 0;
+      sctx.globalCompositeOperation = 'source-over';
+      sctx.fillStyle = '#000';
+      sctx.fillRect(0, 0, SW, SH);   // wipe the smear back to black
+      seed();                        // scatter the blocks anew
+    }
+    window.addEventListener('pointerdown', reset);
+
+    function step() {
+      // mouse offset from center -> a "wind" that steers every square
+      const windX = (mouse.x - 0.5) * 1.8;
+      const windY = (mouse.y - 0.5) * 1.8;
+
+      // 1) THE SMEAR: veil the last frame in faint black instead of clearing
+      sctx.globalCompositeOperation = 'source-over';
+      sctx.fillStyle = 'rgba(0,0,0,0.12)';
+      sctx.fillRect(0, 0, SW, SH);
+
+      // 2) draw the drifting squares additively so overlaps glow hot
+      sctx.globalCompositeOperation = 'lighter';
+      for (const s of squares) {
+        s.x += s.vx + windX;
+        s.y += s.vy + windY;
+
+        // wrap around the edges
+        if (s.x < -s.size) s.x = SW; else if (s.x > SW) s.x = -s.size;
+        if (s.y < -s.size) s.y = SH; else if (s.y > SH) s.y = -s.size;
+
+        // occasionally jump to a new random spot for flickery texture
+        if (Math.random() < 0.004) {
+          s.x = Math.random() * SW;
+          s.y = Math.random() * SH;
+        }
+
+        const sz = Math.max(1, s.size * sizeScale) | 0;
+        sctx.fillStyle = 'hsla(' + hue + ',100%,' + (s.l | 0) + '%,' + s.a + ')';
+        sctx.fillRect(s.x | 0, s.y | 0, sz, sz);
+      }
+
+      // 3) THE JPEG ARTIFACTS: re-encode the buffer as a low-quality JPEG,
+      //    then draw it back into itself. Real 8x8 DCT blocking + ringing,
+      //    and because we feed the result back in, the damage compounds.
+      img.onload = function () {
+        sctx.globalCompositeOperation = 'source-over';
+        sctx.drawImage(img, 0, 0, SW, SH);          // bake artifacts into the sim
+        vctx.imageSmoothingEnabled = false;
+        vctx.drawImage(sim, 0, 0, W, H);            // upscale to the screen
+        requestAnimationFrame(step);
+      };
+      img.src = sim.toDataURL('image/jpeg', quality);
+    }
+    step();
+  })();
+  </script>
+
+  <!-- Inline copy of images.json — used when the page is opened as a local
+       file:// (where fetch of a sibling file is blocked). When the site is
+       served over http, images.json is fetched and takes precedence. -->
+  <script type="application/json" id="images-data">
+[
+  { "file": "vending.jpeg",        "alt": "belgium, wonder if it worked, should've given it a try." },
+  { "file": "comic.jpg",           "alt": "" },
+  { "file": "vespucci.jpeg",       "alt": "you are the most beautiful ship in the world." },
+  { "file": "why.jpeg",            "alt": "so this is what they yearn" },
+  { "file": "csh.jpg",             "alt": "vinyl is old school cool" },
+  { "file": "IMG_0098.jpg",        "alt": "malta, the 4th densest country" },
+  { "file": "IMG_0099.jpg",        "alt": "florence, a minimarket with a familiar name" },
+  { "file": "IMG_0100.jpg",        "alt": "did i find the deer or did it find me" },
+  { "file": "IMG_0101.jpg",        "alt": "amsterdam has beatiful architecture" },
+  { "file": "IMG_0102.jpg",        "alt": "a particularly beautiful goverment building in spain" },
+  { "file": "IMG_0103.jpg",        "alt": "a city known for its sea" },
+  { "file": "cemento.jpeg",        "alt": "sardinia: the cement is beautiful, isn't it?" },
+  { "file": "IMG_0104.jpg",        "alt": "ring ring (bike noises)" },
+  { "file": "IMG_0105.jpg",        "alt": "roses" },
+  { "file": "IMG_0106.jpg",        "alt": "italy" },
+  { "file": "IMG_0107.jpg",        "alt": "before the internet this was everything" },
+  { "file": "twin_did_i_cook.png", "alt": "twin did i cook" },
+  { "file": "61Mc7ZAl58L._AC_SY879_.jpg", "alt": "important to remember" },
+  { "file": "P1070835.JPG",        "alt": "do you know this place? you might be entitled to compensation if so" },
+  { "file": "P1070837.JPG",        "alt": "do you know this place? you might be entitled to compensation if so" },
+  { "file": "antenna.png",         "alt": "composite of many years" },
+  { "file": "bg.png",              "alt": "sempre lì" },
+  { "file": "photo_5931532728828366953_w.jpg", "alt": "i made a digicam!" },
+  { "file": "photo_5931532728828366956_m.jpg", "alt": "cables" },
+  { "file": "photo_5935862983575670379_m.jpg", "alt": "antenna" },
+  { "file": "photo_5935862983575670380_m.jpg", "alt": "desk" },
+  { "file": "photo_5935862983575670381_m.jpg", "alt": "desk" },
+  { "file": "scoods.png",          "alt": "what wikipedia article is he rubbing on?" },
+  { "file": "romaexe.jpg",         "alt": "somewhere in rome..." },
+  { "file": "miaomiao.jpg",        "alt": "he had to be contained" },
+  { "file": "grill.jpg",           "alt": "Strada dei Parchi s.p.a" },
+  { "file": "blossom.jpg",         "alt": "look at this" },
+  { "file": "3ds.jpg",             "alt": "shot on 3ds" }
+]
+  </script>
+
+  <script>
+  // ---- Modal open/close: show content panels on top of the void ----
+  (function () {
+    "use strict";
+    const modals = document.querySelectorAll('.modal');
+
+    function open(id) {
+      closeAll();
+      const m = document.getElementById('modal-' + id);
+      if (m) m.classList.add('open');
+    }
+    function closeAll() { modals.forEach((m) => { m.classList.remove('open'); }); }
+
+    // open from the nav links
+    document.querySelectorAll('[data-modal]').forEach((a) => {
+      a.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); open(a.dataset.modal); });
+    });
+
+    // close via the ✕ button
+    modals.forEach((m) => {
+      m.addEventListener('click', (e) => {
+        if (e.target.classList.contains('modal-close')) closeAll();
+      });
+    });
+
+    // click anywhere outside an open panel (e.g. on the void) closes it
+    document.addEventListener('pointerdown', (e) => {
+      if (!document.querySelector('.modal.open')) return;
+      if (e.target.closest('.modal, [data-modal]')) return;
+      closeAll();
+    });
+
+    // close on Escape
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeAll(); });
+
+    // ---- "images" button: scatter every image around the site randomly ----
+    const scatter = document.getElementById('scatter');
+    let imageData = null;
+    let topZ = 10;   // ever-increasing stack order so a clicked image jumps on top
+
+    async function getImageData() {
+      if (imageData) return imageData;
+      try {
+        const r = await fetch('images.json');          // works when served over http
+        if (r.ok) { imageData = await r.json(); return imageData; }
+      } catch (e) { /* file:// blocks this — fall back to inline copy */ }
+      imageData = JSON.parse(document.getElementById('images-data').textContent);
+      return imageData;
+    }
+
+    async function scatterImages() {
+      const list = await getImageData();
+      scatter.innerHTML = '';
+      const vw = window.innerWidth, vh = window.innerHeight;
+      list.forEach((item) => {
+        const w = 80 + Math.random() * 150;            // random size
+        const pic = document.createElement('div');
+        pic.className = 'pic';
+        pic.style.width = w + 'px';
+        // drop them anywhere across the whole viewport
+        pic.style.left = (Math.random() * Math.max(0, vw - w)) + 'px';
+        pic.style.top = (Math.random() * (vh * 0.85)) + 'px';
+
+        const img = document.createElement('img');
+        img.src = 'images/' + item.file;
+        img.alt = item.alt || '';
+        img.loading = 'lazy';
+        img.draggable = false;                         // let our drag handler own it
+        pic.appendChild(img);
+
+        if (item.alt) {                                // black box tooltip on hover
+          const tip = document.createElement('div');
+          tip.className = 'tip';
+          tip.textContent = item.alt;
+          pic.appendChild(tip);
+        }
+        makeDraggable(pic);
+        scatter.appendChild(pic);
+      });
+
+      // GUIDE.png: same interactive image, but placed dead-centre and on top
+      const guide = document.createElement('div');
+      guide.className = 'pic';
+      const gw = Math.min(360, vw * 0.8);
+      guide.style.width = gw + 'px';
+      guide.style.zIndex = ++topZ;                     // front layer
+      const gimg = document.createElement('img');
+      gimg.src = 'images/GUIDE.png';
+      gimg.alt = 'guide';
+      gimg.draggable = false;
+      gimg.addEventListener('load', () => {
+        guide.style.left = ((vw - guide.offsetWidth) / 2) + 'px';
+        guide.style.top = ((vh - guide.offsetHeight) / 2) + 'px';
+      });
+      guide.appendChild(gimg);
+      makeDraggable(guide);
+      scatter.appendChild(guide);
+    }
+
+    // drag an image around with the pointer
+    function makeDraggable(el) {
+      let ox = 0, oy = 0, dragging = false;
+      el.addEventListener('pointerdown', (e) => {
+        dragging = true;
+        el.setPointerCapture(e.pointerId);
+        const rect = el.getBoundingClientRect();
+        ox = e.clientX - rect.left;
+        oy = e.clientY - rect.top;
+        el.style.zIndex = ++topZ;   // bring the clicked image to the front
+        el.classList.add('dragging');
+        e.preventDefault();
+        e.stopPropagation();
+      });
+      el.addEventListener('pointermove', (e) => {
+        if (!dragging) return;
+        el.style.left = (e.clientX - ox) + 'px';
+        el.style.top = (e.clientY - oy) + 'px';
+      });
+      const end = (e) => {
+        if (!dragging) return;
+        dragging = false;
+        try { el.releasePointerCapture(e.pointerId); } catch (_) {}
+        el.classList.remove('dragging');
+      };
+      el.addEventListener('pointerup', end);
+      el.addEventListener('pointercancel', end);
+    }
+
+    function toggleImages() {
+      if (scatter.childElementCount > 0) scatter.innerHTML = '';  // second click clears
+      else scatterImages();
+    }
+
+    document.querySelectorAll('[data-action="images"]').forEach((a) => {
+      a.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); toggleImages(); });
+    });
+
+    // ---- blog's live "third place" status (from the original blog.html) ----
+    fetch('https://sede.olografix.org/status')
+      .then((r) => { if (!r.ok) throw new Error('bad response'); return r.json(); })
+      .then((data) => {
+        const el = document.getElementById('olostatus');
+        if (!el) return;
+        const status = (typeof data === 'object') ? data.status : data;
+        el.textContent = status ? 'open' : 'closed';
+        el.style.color = status ? '#5cff5c' : '#ff5a5a';
+      })
+      .catch(() => {
+        const el = document.getElementById('olostatus');
+        if (el) { el.textContent = 'status unavailable'; el.style.color = 'orange'; }
+      });
+  })();
+  </script>
+</body>
+</html>
