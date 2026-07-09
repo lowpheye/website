@@ -6,7 +6,10 @@
 <title>nicky is online</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
-  html, body { min-height: 100%; background: #000; overflow-x: hidden; overscroll-behavior: none; }
+  html, body { min-height: 100%; background: #000; overflow: hidden; overscroll-behavior: none; }
+
+  /* content that pans as a "camera" when the player ventures past the edge */
+  .page, #scatter { will-change: transform; }
 
   /* The void background canvas — full-screen layer behind content */
   #void {
@@ -214,6 +217,12 @@
     const view = document.getElementById('void');
     const vctx = view.getContext('2d');
 
+    // ---- Camera: when the player shoves past the play area, the website
+    //      content slides the opposite way so you feel yourself leaving it ----
+    const pageEl = document.querySelector('.page');
+    const scatterEl = document.getElementById('scatter');
+    const cam = { x: 0, y: 0 };   // permanent camera offset — banks how far you've ventured out
+
     // Offscreen low-res "simulation" buffer. Rendering small then upscaling
     // makes the JPEG blocks chunky and keeps the per-frame re-encode cheap.
     const sim = document.createElement('canvas');
@@ -366,18 +375,55 @@
       // player speed scales with the buffer so it feels the same at any size
       const spd = Math.max(2, SW / 200);
 
-      // 2) draw the drifting squares additively so overlaps glow hot
+      // 2a) drive the player first so the shove is resolved before anything draws.
+      //     WASD moves it — no wind, no random teleport — then it barges any
+      //     square it overlaps out of the way along the shallowest axis.
+      if (player) {
+        let mvx = 0, mvy = 0;
+        if (keys.has('w')) mvy -= spd;
+        if (keys.has('s')) mvy += spd;
+        if (keys.has('a')) mvx -= spd;
+        if (keys.has('d')) mvx += spd;
+
+        const nx = player.x + mvx, ny = player.y + mvy;
+        player.x = Math.max(0, Math.min(SW - 1, nx));   // the square stays in the viewport
+        player.y = Math.max(0, Math.min(SH - 1, ny));
+
+        // every pixel the wall eats is *permanently* banked into the camera: the
+        // website slides off the opposite way and stays there. Pressing back just
+        // walks the square off the edge again — the shift never rewinds.
+        const s2 = W / SW;                       // sim-buffer px -> screen px
+        cam.x -= (nx - player.x) * s2;
+        cam.y -= (ny - player.y) * s2;
+        const t = 'translate(' + (cam.x | 0) + 'px,' + (cam.y | 0) + 'px)';
+        if (pageEl) pageEl.style.transform = t;
+        if (scatterEl) scatterEl.style.transform = t;
+
+        const pw = Math.max(1, player.size * sizeScale);
+        for (const s of squares) {
+          if (s === player) continue;
+          const sw = Math.max(1, s.size * sizeScale);
+          // signed penetration depth on each axis (positive == overlapping)
+          const ox = Math.min(player.x + pw, s.x + sw) - Math.max(player.x, s.x);
+          const oy = Math.min(player.y + pw, s.y + sw) - Math.max(player.y, s.y);
+          if (ox <= 0 || oy <= 0) continue;                   // no contact
+          const kick = Math.min(spd * 0.4, 1.5);              // gentle drift, capped
+          if (ox < oy) {                                      // push along X (shallower)
+            const dir = (s.x + sw / 2) < (player.x + pw / 2) ? -1 : 1;
+            s.x += dir * ox;
+            s.vx = dir * kick;                                // send it drifting off
+          } else {                                            // push along Y
+            const dir = (s.y + sw / 2) < (player.y + pw / 2) ? -1 : 1;
+            s.y += dir * oy;
+            s.vy = dir * kick;
+          }
+        }
+      }
+
+      // 2b) draw the drifting squares additively so overlaps glow hot
       sctx.globalCompositeOperation = 'lighter';
       for (const s of squares) {
-        if (s === player) {
-          // WASD drives this one — no wind, no random teleport
-          if (keys.has('w')) s.y -= spd;
-          if (keys.has('s')) s.y += spd;
-          if (keys.has('a')) s.x -= spd;
-          if (keys.has('d')) s.x += spd;
-          s.x = Math.max(0, Math.min(SW - 1, s.x));   // keep it on the buffer
-          s.y = Math.max(0, Math.min(SH - 1, s.y));
-        } else {
+        if (s !== player) {
           s.x += s.vx + windX;
           s.y += s.vy + windY;
 
@@ -559,8 +605,11 @@
           el.style.top = (startTop - dw / 2 * startRatio) + 'px';
           el.style.width = next + 'px';
         } else if (pointers.size === 1) {                  // single finger: move it
-          el.style.left = (e.clientX - ox) + 'px';
-          el.style.top = (e.clientY - oy) + 'px';
+          // #scatter is translated by the camera; clientX/Y are screen-space, but
+          // left/top are #scatter-local, so subtract the layer's current offset.
+          const layer = scatter.getBoundingClientRect();
+          el.style.left = (e.clientX - ox - layer.left) + 'px';
+          el.style.top = (e.clientY - oy - layer.top) + 'px';
         }
         e.preventDefault();
       });
